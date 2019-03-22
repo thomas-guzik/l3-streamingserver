@@ -35,7 +35,7 @@
 int main(void)
 {
 	char buf[BUFLEN] = {0};
-	int meta[3];
+	int meta[3] = {0};
 	char name[64] = {"\0"};
 	
 	struct sockaddr_in serv;
@@ -69,10 +69,20 @@ int main(void)
 			perror("recvfrom failed");
 		}
 		
-		pid = fork();
+		printf("Name received: %s Client: %s\n",name,inet_ntoa(client.sin_addr));
+		
+		if(access(name, F_OK ) == -1) {
+			printf("Error 404 File doesn't exist, refusing request...\n");
+			meta[0] = 404;
+			sendto(sockfd,meta,4,0,(struct sockaddr*)&client,clientlen);
+			
+		}
+		else {
+			printf("File exists\n");
+			pid = fork();
+		}
 		
 		if(pid == 0) {
-			printf("File received: %s Client: %s\n",name,inet_ntoa(client.sin_addr));
 			
 			Son *s = newSon(name);
 			
@@ -133,12 +143,13 @@ int main(void)
 		}
 		else {
 			while (wait(&status) != pid) {
-				printf("Refusing request... \n");
+				printf("Refusing any request... \n");
 				lenrcv = recvfrom(sockfd,name,1,0,(struct sockaddr*)&client,&clientlen);
 				if(lenrcv < 0) {
 					perror("recvfrom failed");
 				}
-				sendto(sockfd,0,0,0,(struct sockaddr*)&client,clientlen);
+				meta[0] = 503;
+				sendto(sockfd,meta,4,0,(struct sockaddr*)&client,clientlen);
 			}
 			printf("Let's start again\n");
 		}

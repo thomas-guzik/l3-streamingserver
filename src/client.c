@@ -45,13 +45,24 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	if((recvlen = recvfrom(sockfd, meta, 12, 0, &client, &clientlen) == -1)) {
+	if((recvlen = recvfrom(sockfd, meta, 12, 0, &client, &clientlen)) == -1) {
 		perror("recvfrom()");
 		exit(1);
 	}
 	
-	if(recvlen == 1) {
-		printf("Error 503 Service Unavailable, come later\n");
+	if(recvlen == 4) {
+		switch (meta[0]) {
+			case 503:
+				printf("Error 503 Service Unavailable, come later\n");
+				break;
+			case 404:
+				printf("Error 404 File not found\n");
+				break;
+			default:
+				printf("Unknown error %d\n",meta[0]);
+		}
+		sleep(1);
+		exit(1);
 	}
 	
 	
@@ -76,5 +87,6 @@ int main(int argc, char *argv[])
 	while((n = recvfrom(sockfd, buf, bytes_to_read, 0, &client, &clientlen)) > 0) {
 		write(speakerfd, buf , n);
 	}
+	sleep(1);
 	return 0;
 }
