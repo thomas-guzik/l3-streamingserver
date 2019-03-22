@@ -23,6 +23,7 @@ int main(int argc, char *argv[])
 	
 	struct sockaddr client;
 	socklen_t clientlen = sizeof(client);
+	int recvlen;
 		
 	int speakerfd;
 	
@@ -44,10 +45,15 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	if(recvfrom(sockfd, meta, 12, 0, &client, &clientlen) == -1) {
+	if((recvlen = recvfrom(sockfd, meta, 12, 0, &client, &clientlen) == -1)) {
 		perror("recvfrom()");
 		exit(1);
 	}
+	
+	if(recvlen == 1) {
+		printf("Error 503 Service Unavailable, come later\n");
+	}
+	
 	
 	printf("Metadata received %d %d %d\n",meta[0], meta[1], meta[2]);
 	speakerfd = aud_writeinit(meta[0],meta[1],meta[2]);

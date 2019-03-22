@@ -11,6 +11,7 @@
 #include "../include/lecteur.h"
 
 #include <sys/timerfd.h> 
+#include <sys/wait.h>
 
 
 #define BUFLEN 512
@@ -41,6 +42,9 @@ int main(void)
 	struct sockaddr_in client;
 	socklen_t clientlen = sizeof(client);
 	size_t lenrcv;
+	
+	pid_t pid;
+	int status;
 
 	int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 	if(sockfd < 0) {
@@ -58,72 +62,87 @@ int main(void)
 		exit(1);
 	}
 	
-	printf("Waiting for client request.. \n");
-	lenrcv = recvfrom(sockfd,name,64,0,(struct sockaddr*)&client,&clientlen);
-	if(lenrcv < 0) {
-		perror("recvfrom failed");
-	}
-	
-	printf("File received: %s Client: %s\n",name,inet_ntoa(client.sin_addr));
-	
-	Son *s = newSon(name);
-	
-	meta[0] = s->rate;
-	meta[1] = s->size;
-	meta[2] = s->channels;
-	
-	sendto(sockfd,meta,12,0,(struct sockaddr*)&client,clientlen);
-	printf("Metadata sent: %d %d %d\n",meta[0], meta[1], meta[2]);
-	usleep(2);
-	
-	int bytes_to_read = ((s->size/8) * s->channels);
-	int bytes_read;
-	
-	
-	// Creation d'un timer qui tick toutes les 10^9/rate_sound nanosecondes
-	unsigned long long overrun; 
-	struct itimerspec spec; 
-	int timerfd = timerfd_create(CLOCK_REALTIME, 0); 
-	if(timerfd < 0) { 
-		perror("timerfd_create"); 
-		exit(1); 
-	}
-	
-	spec.it_interval.tv_sec = 0; 
-	spec.it_interval.tv_nsec = (long)1000000000 /(long)s->rate;
-	spec.it_value = spec.it_interval;
-	
-	if(timerfd_settime(timerfd, 0, &spec, NULL)) { 
-		perror("timerfd_settime"); 
-		exit(1); 
-	}
-	
-	// Fin de la creation du timer
-	
-	printf("Bytes to read: %d every  %.9ld /ns\n", bytes_to_read, spec.it_interval.tv_nsec);
-	
-	unsigned char sockcounter = 0;
-	// L'appel de read(timerfd est bloquant jusqu'a que le temps soit ecoule
-	while(read(timerfd, &overrun, sizeof(overrun)) > 0) {
-		bytes_read = read(s->read,buf, bytes_to_read);
-		if(bytes_read == 0) {
-			break;
+	while(1) {
+		printf("Waiting for client request.. \n");
+		lenrcv = recvfrom(sockfd,name,64,0,(struct sockaddr*)&client,&clientlen);
+		if(lenrcv < 0) {
+			perror("recvfrom failed");
+		}
+		
+		pid = fork();
+		
+		if(pid == 0) {
+			printf("File received: %s Client: %s\n",name,inet_ntoa(client.sin_addr));
+			
+			Son *s = newSon(name);
+			
+			meta[0] = s->rate;
+			meta[1] = s->size;
+			meta[2] = s->channels;
+			
+			sendto(sockfd,meta,12,0,(struct sockaddr*)&client,clientlen);
+			printf("Metadata sent: %d %d %d\n",meta[0], meta[1], meta[2]);
+			usleep(2);
+			
+			int bytes_to_read = ((s->size/8) * s->channels);
+			int bytes_read;
+			
+			
+			// Creation d'un timer qui tick toutes les 10^9/rate_sound nanosecondes
+			unsigned long long overrun; 
+			struct itimerspec spec; 
+			int timerfd = timerfd_create(CLOCK_REALTIME, 0); 
+			if(timerfd < 0) { 
+				perror("timerfd_create"); 
+				exit(1); 
+			}
+			
+			spec.it_interval.tv_sec = 0; 
+			spec.it_interval.tv_nsec = (long)1000000000 /(long)s->rate;
+			spec.it_value = spec.it_interval;
+			
+			if(timerfd_settime(timerfd, 0, &spec, NULL)) { 
+				perror("timerfd_settime"); 
+				exit(1); 
+			}
+			
+			// Fin de la creation du timer
+			
+			printf("Bytes to read: %d every  %.9ld /ns\n", bytes_to_read, spec.it_interval.tv_nsec);
+			
+			unsigned char sockcounter = 0;
+			// L'appel de read(timerfd est bloquant jusqu'a que le temps soit ecoule
+			while(read(timerfd, &overrun, sizeof(overrun)) > 0) {
+				bytes_read = read(s->read,buf, bytes_to_read);
+				if(bytes_read == 0) {
+					break;
+				}
+				else {
+					// Permet de générer des erreurs
+					//if(sockcounter < 220)
+					sendto(sockfd, buf, bytes_read, 0,(struct sockaddr*)&client,clientlen);
+				sockcounter++;
+				}
+			}
+			
+			// Envoi d'une socket vide pour signaler la fin
+			sendto(sockfd,buf, 0, 0,(struct sockaddr*)&client,clientlen);
+			
+			close(s->read);
+			free(s);
 		}
 		else {
-			// Permet de générer des erreurs
-			//if(sockcounter < 220)
-			sendto(sockfd, buf, bytes_read, 0,(struct sockaddr*)&client,clientlen);
-		sockcounter++;
+			while (wait(&status) != pid) {
+				printf("Refusing request... \n");
+				lenrcv = recvfrom(sockfd,name,1,0,(struct sockaddr*)&client,&clientlen);
+				if(lenrcv < 0) {
+					perror("recvfrom failed");
+				}
+				sendto(sockfd,0,0,0,(struct sockaddr*)&client,clientlen);
+			}
+			printf("Let's start again\n");
 		}
 	}
-	
-	// Envoi de 1 pour fermer la discussion
-	sendto(sockfd,buf, 0, 0,(struct sockaddr*)&client,clientlen);
-	
-	close(s->read);
-	free(s);
-	
-	
 	
 	
 	/* TENTATIVE AVEC NANOSLEEP 
@@ -140,7 +159,8 @@ int main(void)
 			break;
 		}
 	}
-
+	
+	EXPERIENCE
 	Comportement des read/write
 	read (...32)
 	write (...40)
