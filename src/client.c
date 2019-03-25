@@ -1,92 +1,65 @@
 #include <stdio.h>	//printf
-#include <string.h> //memset
 #include <stdlib.h> //exit(0);
+#include <string.h> //memset
 #include <unistd.h>
+
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <time.h>
+#include <sys/time.h>
 
 #include "../sysprog-audio-1.5/audio.h"
 #include "../include/lecteur.h"
+#include "../include/socketlvl2.h"
 
 #define SERVER "127.0.0.1" //Adresse du serveur
-#define BUFLEN 512	//Max length of buffer
+#define BUFLEN 64	//Max length of buffer
 #define PORT 8888	//The port on which to send data
 
 int main(int argc, char *argv[])
 {
 	char name[] = "test.wav";
 	char buf[BUFLEN] = {0};
-	int meta[3];
+	
+	struct sockaddr_in client;
+	socklen_t clientlen = sizeof(client);
+	ssize_t recvlen;
+		
+	fd_set sockfds;
+	struct timeval timeout;
+	
+	int sockfd = socket_check(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+	
+	init_timeout_sock(sockfd, &sockfds, &timeout, 2,0);
+	
 	struct sockaddr_in serv;
 	socklen_t servlen = sizeof(serv);
+	init_sockaddr_in(&serv, AF_INET, htons(PORT), htonl(INADDR_ANY));
 	
-	struct sockaddr client;
-	socklen_t clientlen = sizeof(client);
-	int recvlen;
-		
-	int speakerfd;
+	printf("Music: %s\n", name);
 	
-	int sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	if(sockfd == -1) {
-		perror("socket failed");
-		exit(1);
-	}
+	sendto_check(sockfd, name, strlen(name), 0, &serv, servlen);
 	
-	bzero((char *) &serv, sizeof(serv));
+	recvlen = timeout_recv_check(sockfd, buf, 6, &client, &clientlen, &sockfds, &timeout);
 	
-	serv.sin_family = AF_INET;
-	serv.sin_port = htons(PORT);
-	serv.sin_addr.s_addr = htonl(INADDR_ANY);
+	check_error((int*)buf, recvlen);
 	
-	// ??
-	if(sendto(sockfd, name, strlen(name), 0, (struct sockaddr *)&serv, servlen) == -1) {
-		perror("sendto failed");
-		exit(1);
-	}
+	printf("Metadata received %d %d %d\n",((int*)buf)[0], buf[4], buf[5]);
 	
-	if((recvlen = recvfrom(sockfd, meta, 12, 0, &client, &clientlen)) == -1) {
-		perror("recvfrom()");
-		exit(1);
-	}
-	
-	if(recvlen == 4) {
-		switch (meta[0]) {
-			case 503:
-				printf("Error 503 Service Unavailable, come later\n");
-				break;
-			case 404:
-				printf("Error 404 File not found\n");
-				break;
-			default:
-				printf("Unknown error %d\n",meta[0]);
-		}
-		sleep(1);
-		exit(1);
-	}
-	
-	
-	printf("Metadata received %d %d %d\n",meta[0], meta[1], meta[2]);
-	speakerfd = aud_writeinit(meta[0],meta[1],meta[2]);
-	int bytes_to_read = (meta[1]/8) * meta[2];
+	int speakerfd = aud_writeinit(((int*)buf)[0], buf[4], buf[5]);
 	
 	if(speakerfd < 0) {
-		perror("error aud_writeinit");
-	}
-	// Permet de creer un timeout
-	// https://stackoverflow.com/questions/13547721/udp-socket-set-timeout
-	struct timeval tv;
-	tv.tv_sec = 1;
-	tv.tv_usec = 0;
-	if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO,&tv,sizeof(tv)) < 0) {
-	 	perror("Error");
+		perror("aud_writeinit failed");
+		exit(1);
 	}
 	
-
-	int n = 2;
-	while((n = recvfrom(sockfd, buf, bytes_to_read, 0, &client, &clientlen)) > 0) {
-		write(speakerfd, buf , n);
+	size_t bytes_to_read = (buf[4]/8) * buf[5];
+	
+	while((recvlen = recvfrom(sockfd, buf, bytes_to_read,0, (struct sockaddr *)&client, &clientlen)) > 0) {
+		write(speakerfd, buf , recvlen); // pas de verif du write
 	}
-	sleep(1);
+	printf("Fin de la transmission\n");
+	
+	close(speakerfd);
+	close(sockfd);
 	return 0;
 }
