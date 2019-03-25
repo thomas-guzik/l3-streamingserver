@@ -1,13 +1,10 @@
-all : audioserver audioclient lecteur
+all : audioserver audioclient
 
 audioclient : obj/client.o obj/audio.o obj/lecteur.o obj/socketlvl2.o
 	gcc obj/client.o obj/audio.o obj/lecteur.o obj/socketlvl2.o -o  audioclient
 
 audioserver : obj/server.o obj/audio.o obj/lecteur.o obj/socketlvl2.o
 	gcc obj/server.o obj/audio.o obj/lecteur.o obj/socketlvl2.o -o audioserver
-	
-lecteur : obj/lecteur.o obj/audio.o
-	gcc -c obj/lecteur.o -o lecteur
 
 obj/lecteur.o : src/lecteur.c
 	gcc -c src/lecteur.c -o obj/lecteur.o
@@ -26,5 +23,4 @@ obj/client.o: src/client.c
 
 clean :
 	rm -f obj/*.o
-	rm -f lecteur
-	rm -f audio*
+	rm -f audioclient audioserver
