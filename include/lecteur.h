@@ -1,6 +1,8 @@
 #ifndef LECTEUR_FILE
 #define LECTEUR_FILE
 
+#define MULTISOCKER 64
+
 typedef struct Son Son;
 struct Son {
 	int rate;
@@ -15,4 +17,3 @@ Son* newSon(char* name);
 void play(Son *s);
 
 #endif
-

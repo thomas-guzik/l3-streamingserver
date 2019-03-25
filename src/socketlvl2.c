@@ -46,7 +46,6 @@ ssize_t sendto_check(int sockfd, const void *buf, size_t len, int flags, struct 
 	return ret;
 }
 
-
 ssize_t timeout_recv_check(int sockfd, void* buf, size_t len, struct sockaddr_in *client, socklen_t *clientlen, fd_set *sockfds, struct timeval *timeout) {
 	ssize_t recvlen;
 	

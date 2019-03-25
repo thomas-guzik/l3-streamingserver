@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 		exit(1);
 	}
 	
-	size_t bytes_to_read = (buf[4]/8) * buf[5];
+	size_t bytes_to_read = (buf[4]/8) * buf[5] * (long)MULTISOCKER;
 	
 	while((recvlen = recvfrom(sockfd, buf, bytes_to_read,0, (struct sockaddr *)&client, &clientlen)) > 0) {
 		write(speakerfd, buf , recvlen); // pas de verif du write

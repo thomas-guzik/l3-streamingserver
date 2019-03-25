@@ -18,7 +18,7 @@
 
 #define BUFLEN 512
 #define PORT 8888
-#define MAX_PID 2
+#define MAX_PID 4
 
 // Concernant les timers
 // http://man7.org/linux/man-pages/man7/time.7.html
@@ -88,7 +88,7 @@ int main(void)
 		usleep(2);
 		
 		if(lenrcv > 0) {
-			printf("Name received: %s Client: %s\n",name,inet_ntoa(client.sin_addr));
+			printf("Name received: %s Client: %s Port: %hu \n",name,inet_ntoa(client.sin_addr), client.sin_port);
 			
 			// Gestion des erreurs
 			if(ipid == MAX_PID) {
@@ -120,13 +120,13 @@ int main(void)
 			usleep(2);
 			
 			// Creation d'un timer qui tick toutes les 10^9/rate_sound nanosecondes
-			int timerfd = create_timer(0, (long)1000000000 /(long)s->rate); 
+			int timerfd = create_timer(0, (long)MULTISOCKER * (long)1000000000 /(long)s->rate); 
 			unsigned long long overrun; 
 			
-			size_t bytes_to_read = ((s->size/8) * s->channels);
+			size_t bytes_to_read = ((s->size/8) * s->channels * (long)MULTISOCKER);
 			int bytes_read;
 			
-			printf("Bytes to read: %ld every  %.9ld /ns\n Sending...\n", bytes_to_read, (long)1000000000 /(long)s->rate);
+			printf("Bytes to read: %ld every  %.9ld /ns\n Sending...\n", bytes_to_read, (long)MULTISOCKER * (long)1000000000 /(long)s->rate);
 			
 			// unsigned char sockcounter = 0;
 			// L'appel de read(timerfd est bloquant jusqu'a que le temps soit ecoule
