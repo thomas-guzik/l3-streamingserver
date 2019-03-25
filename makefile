@@ -1,14 +1,17 @@
 all : audioserver audioclient
 
-audioclient : obj/client.o obj/audio.o obj/lecteur.o
-	gcc obj/client.o obj/audio.o obj/lecteur.o -o  audioclient
+audioclient : obj/client.o obj/audio.o obj/lecteur.o obj/socketlvl2.o
+	gcc obj/client.o obj/audio.o obj/lecteur.o obj/socketlvl2.o -o  audioclient
 
-audioserver : obj/server.o obj/audio.o obj/lecteur.o
-	gcc obj/server.o obj/audio.o obj/lecteur.o -o audioserver
+audioserver : obj/server.o obj/audio.o obj/lecteur.o obj/socketlvl2.o
+	gcc obj/server.o obj/audio.o obj/lecteur.o obj/socketlvl2.o -o audioserver
 
 
 obj/lecteur.o : src/lecteur.c
 	gcc -c src/lecteur.c -o obj/lecteur.o
+	
+obj/socketlvl2.o : src/socketlvl2.c
+	gcc -c src/socketlvl2.c -o obj/socketlvl2.o
 
 obj/audio.o : sysprog-audio-1.5/audio.c
 	gcc -c sysprog-audio-1.5/audio.c -o obj/audio.o

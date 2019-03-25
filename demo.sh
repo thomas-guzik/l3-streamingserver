@@ -3,7 +3,8 @@
 # Lanceur automatique de audioclient et audioserver
 make
 if [ $? -eq 0 ]; then
-	xterm -e "./audioserver" &
+	xterm -hold -e "./audioserver" &
 	sleep 1
-	xterm -e "padsp ./audioclient"
+	xterm -hold -e "padsp ./audioclient" &
+	sleep 1
 fi
