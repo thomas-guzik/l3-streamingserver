@@ -10,15 +10,13 @@
 #include "../include/lecteur.h"
 #include "../include/socketlvl2.h"
 
-
 #include <sys/timerfd.h>
 #include <sys/wait.h>
 #include <sys/select.h>
-#include <signal.h> 
 
-#define BUFLEN 512
+#define BUFLEN 1024
 #define PORT 8888
-#define MAX_PID 4
+#define MAX_PID 3
 
 // Concernant les timers
 // http://man7.org/linux/man-pages/man7/time.7.html
@@ -57,6 +55,7 @@ int create_timer(time_t tv_sec, long tv_nsec) {
 
 int main(void)
 {
+	// initialisations
 	char buf[BUFLEN] = {0};
 	char name[64] = {"\0"};
 	
@@ -80,7 +79,9 @@ int main(void)
 	
 	init_timeout_sock(sockfd, &sockfds, &timeout, 5, 0);
 	
+	printf("Server open with ip: %s Port: %d\n", inet_ntoa(serv.sin_addr),ntohs(serv.sin_port));
 	// Fin  d'initialisations du serveur
+	
 	while(1) {
 		
 		lenrcv = timeout_recv_check(sockfd, name, 64, &client, &clientlen, &sockfds, &timeout);
@@ -88,7 +89,7 @@ int main(void)
 		usleep(2);
 		
 		if(lenrcv > 0) {
-			printf("Name received: %s Client: %s Port: %hu \n",name,inet_ntoa(client.sin_addr), client.sin_port);
+			printf("Name received: %s Client: %s Port: %hu \n",name,inet_ntoa(client.sin_addr), ntohs(client.sin_port));
 			
 			// Gestion des erreurs
 			if(ipid == MAX_PID) {

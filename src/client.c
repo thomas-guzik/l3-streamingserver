@@ -5,20 +5,44 @@
 
 #include <arpa/inet.h>
 #include <sys/socket.h>
-#include <sys/time.h>
+#include <netdb.h>
 
 #include "../sysprog-audio-1.5/audio.h"
 #include "../include/lecteur.h"
 #include "../include/socketlvl2.h"
 
-#define SERVER "127.0.0.1" //Adresse du serveur
-#define BUFLEN 64	//Max length of buffer
+#define BUFLEN 1024	//Max length of buffer
 #define PORT 8888	//The port on which to send data
+
+void parse_param(int argc, char** argv, char** name, struct in_addr* sin_addr) {
+	if(argc != 3) {
+		perror("Number of parameters invalid");
+		exit(1);
+	}
+	struct addrinfo* result;
+	struct addrinfo hints;
+	
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	int err = getaddrinfo(argv[1], NULL, &hints, &result);
+	if (err != 0) {
+		fprintf(stderr, "%s\n", gai_strerror(err));
+		exit(1);
+	}
+	*sin_addr = ((struct sockaddr_in*)result->ai_addr)->sin_addr;
+	freeaddrinfo(result);
+	
+	*name = argv[2];
+}
 
 int main(int argc, char *argv[])
 {
-	char name[] = "test.wav";
+	char* name;
 	char buf[BUFLEN] = {0};
+	struct in_addr sin_addr;
+	parse_param(argc, argv, &name, &sin_addr);
+	
+	printf("IP server found: %s Music asked: %s\n",inet_ntoa(sin_addr), name);
 	
 	struct sockaddr_in client;
 	socklen_t clientlen = sizeof(client);
@@ -33,9 +57,7 @@ int main(int argc, char *argv[])
 	
 	struct sockaddr_in serv;
 	socklen_t servlen = sizeof(serv);
-	init_sockaddr_in(&serv, AF_INET, htons(PORT), htonl(INADDR_ANY));
-	
-	printf("Music: %s\n", name);
+	init_sockaddr_in(&serv, AF_INET, htons(PORT), sin_addr.s_addr);
 	
 	sendto_check(sockfd, name, strlen(name), 0, &serv, servlen);
 	
