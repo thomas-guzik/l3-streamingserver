@@ -7,11 +7,11 @@ if [ $? -eq 0 ]; then
 	sleep 1
 	xterm -hold -e "./audioserver" &
 	sleep 1
-	xterm -hold -e "padsp ./audioclient localhost test.wav" &
+	xterm -hold -e "padsp ./audioclient localhost test30s.wav" &
 	sleep 1
-	xterm -hold -e "padsp ./audioclient localhost test.wav" &
+	xterm -hold -e "padsp ./audioclient localhost test30s.wav" &
 	sleep 1
-	xterm -hold -e "padsp ./audioclient localhost test.wav" &
+	xterm -hold -e "padsp ./audioclient localhost test30s.wav" &
 	sleep 1
-	xterm -hold -e "padsp ./audioclient localhost test.wav" &
+	xterm -hold -e "padsp ./audioclient localhost test30s.wav" &
 fi
