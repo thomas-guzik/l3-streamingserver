@@ -18,46 +18,14 @@
 #define PORT 8888
 #define MAX_PID 3
 
-// Concernant les timers
-// http://man7.org/linux/man-pages/man7/time.7.html
-
-// Various system calls and functions allow a program to sleep (suspend
-// execution) for a specified period of time; see nanosleep(2),
-// clock_nanosleep(2), and sleep(3).
-// 
-// Various system calls allow a process to set a timer that expires at
-// some point in the future, and optionally at repeated intervals; see
-// alarm(2), getitimer(2), timerfd_create(2), and timer_create(2).
-
-// On utilise un timerfd, les autres timers demandent une gestion des signaux
-// trop compliqué et nanosleep presentait des bugs sur mon ordi(il fallait 
-// fixer un flag pour que les fonctions sleep fonctionne)
-
-int create_timer(time_t tv_sec, long tv_nsec) {
-	struct itimerspec spec;
-	int timerfd = timerfd_create(CLOCK_REALTIME, 0);
-	if(timerfd < 0) {
-		perror("timerfd_create");
-		exit(1);
-	}
-
-	spec.it_interval.tv_sec = tv_sec;
-	spec.it_interval.tv_nsec = tv_nsec;
-	spec.it_value = spec.it_interval;
-	
-	if(timerfd_settime(timerfd, 0, &spec, NULL)) {
-		perror("timerfd_settime");
-		exit(1);
-	}
-	
-	return timerfd;
-}
 
 int main(void)
 {
 	// initialisations
 	char buf[BUFLEN] = {0};
 	char name[64] = {"\0"};
+	char full[65] = {"\0"};
+	unsigned filter = 0;
 	
 	struct sockaddr_in client;
 	socklen_t clientlen = sizeof(client);
@@ -77,14 +45,17 @@ int main(void)
 	
 	bind_check(sockfd, &serv, sizeof(serv));
 	
-	init_timeout_sock(sockfd, &sockfds, &timeout, 5, 0);
+	init_timeout_sock(sockfd, &sockfds, &timeout, 2, 0);
 	
 	printf("Server open with ip: %s Port: %d\n", inet_ntoa(serv.sin_addr),ntohs(serv.sin_port));
 	// Fin  d'initialisations du serveur
 	
 	while(1) {
 		
-		lenrcv = timeout_recv_check(sockfd, name, 64, &client, &clientlen, &sockfds, &timeout);
+		lenrcv = timeout_recv_check(sockfd, full, 64, &client, &clientlen, &sockfds, &timeout);
+		
+		filter = full[0];
+		strcpy(name, (full+1));
 		
 		usleep(2);
 		
@@ -114,39 +85,19 @@ int main(void)
 		}
 		
 		if(pid == 0) {
-			Son *s = newSon(name);
+			Son s;
+			newSon(&s, name);
 			
-			send_metadata(sockfd, buf, &client, clientlen, s);
+			if(available_filter(&s,filter) == 0) {
+				send_errno(sockfd, (int*)buf, &client, clientlen, 405);
+				exit(0);
+			}
+			
+			send_metadata(sockfd, buf, &client, clientlen, &s, filter);
 			
 			usleep(2);
-			
-			// Creation d'un timer qui tick toutes les 10^9/rate_sound nanosecondes
-			int timerfd = create_timer(0, (long)MULTISOCKER * (long)1000000000 /(long)s->rate); 
-			unsigned long long overrun; 
-			
-			size_t bytes_to_read = ((s->size/8) * s->channels * (long)MULTISOCKER);
-			int bytes_read;
-			
-			printf("Bytes to read: %ld every  %.9ld /ns\n Sending...\n", bytes_to_read, (long)MULTISOCKER * (long)1000000000 /(long)s->rate);
-			
-			// unsigned char sockcounter = 0;
-			// L'appel de read(timerfd est bloquant jusqu'a que le temps soit ecoule
-			while(read(timerfd, &overrun, sizeof(overrun)) > 0) {
-				if((bytes_read = read(s->read,buf, bytes_to_read)) == 0) {
-					break;
-				}
-				else {
-					//if(sockcounter < 220) // Permet de générer des erreurs
-					sendto(sockfd, buf, bytes_read, 0,(struct sockaddr*)&client,clientlen);
-					//sockcounter++;
-				}
-			}
-			// Envoi d'une socket vide pour signaler la fin
+			send_sound(&s, sockfd, MULTISOCKER, filter, 0.8, &client, clientlen);
 			sendto(sockfd,buf, 0, 0,(struct sockaddr*)&client,clientlen);
-			printf("%s sent completly\n", name);
-			
-			close(s->read);
-			free(s);
 			exit(0);
 		}
 		

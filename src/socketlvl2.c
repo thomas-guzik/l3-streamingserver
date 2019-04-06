@@ -49,6 +49,8 @@ ssize_t sendto_check(int sockfd, const void *buf, size_t len, int flags, struct 
 ssize_t timeout_recv_check(int sockfd, void* buf, size_t len, struct sockaddr_in *client, socklen_t *clientlen, fd_set *sockfds, struct timeval *timeout) {
 	ssize_t recvlen;
 	
+	FD_SET(sockfd, sockfds);
+	
 	if(select(8, sockfds, NULL, NULL, timeout) == 0) {
 		return 0;
 	}
@@ -68,6 +70,9 @@ void check_error(int* buf, int recvlen) {
 			case 404:
 				printf("Error 404 File not found\n");
 				break;
+			case 405:
+				printf("Error 404 Filter not available\n");
+				break;
 			default:
 				printf("Unknown error %d\n",(int)buf[0]);
 		}
@@ -79,10 +84,15 @@ void check_error(int* buf, int recvlen) {
 	}
 }
 
-void send_metadata(int sockfd, char *buf, struct sockaddr_in *client, size_t len, struct Son *s) {
+void send_metadata(int sockfd, char *buf, struct sockaddr_in *client, size_t len, struct Son *s, unsigned char filter) {
 	((int*)buf)[0] = s->rate;
 	buf[4] = s->size;
+	if((filter & MONO) == MONO) {
+		buf[5] = 1;
+	}
+	else {
 	buf[5] = s->channels;
+}
 	
 	sendto(sockfd,buf,6,0,(struct sockaddr*)client,len);
 	printf("Metadata sent: %d %d %d\n",((int*)buf)[0], buf[4], buf[5]);
@@ -91,4 +101,43 @@ void send_metadata(int sockfd, char *buf, struct sockaddr_in *client, size_t len
 void send_errno(int sockfd, int* buf, struct sockaddr_in* client, size_t len, int errno) {
 	buf[0] = errno;
 	sendto(sockfd,buf,4,0,(struct sockaddr*)client,len);
+}
+
+void send_sound(Son *s, int sockfd, int multi, unsigned char filter, float lvl, struct sockaddr_in *client, socklen_t clientlen) {
+	size_t bytes_to_read, bytes_read;
+	char buf[BUFLEN];
+	
+	bytes_to_read = bytes_for_sampling(&s[0]) * multi;
+	long elapsed = elapsed_time_between_sampling(&s[0]) * multi;
+	
+	int timerfd = create_timer(0, elapsed); 
+	unsigned long long overrun; 
+	
+	printf("Bytes to read: %ld every  %ld /ns\n", bytes_to_read, elapsed);
+
+	unsigned char a, b;
+	short bufecho[256][BUFLEN];
+	init_echo(&a, &b);
+	
+	
+	while(read(timerfd, &overrun, sizeof(overrun)) > 0) {
+		if((bytes_read = read(s->read,buf, bytes_to_read)) == 0) {
+			break;
+		}
+		else {
+			if((filter & MONO) == MONO) {
+				mono(s, buf, bytes_read);
+				bytes_read = bytes_read/2;
+			}
+			if((filter & VOLUME) == VOLUME) {
+				volume(s, buf, bytes_read, lvl);
+			}
+			if((filter & ECHO) == ECHO) {
+				echo(s, (short*)buf, bufecho, &a, &b, bytes_read);
+			}
+			sendto(sockfd, buf, bytes_read, 0,(struct sockaddr*)client,clientlen);
+		}
+	}
+	close(timerfd);
+	close(s->read);
 }

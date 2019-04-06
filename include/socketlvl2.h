@@ -1,6 +1,7 @@
 #ifndef SOCKETLVL2_FILE
 #define SOCKETLVL2_FILE
 
+#define MULTISOCKER 64
 #include <sys/socket.h>
 #include "../include/lecteur.h"
 
@@ -19,10 +20,10 @@ ssize_t timeout_recv_check(int sockfd, void* buf, size_t len, struct sockaddr_in
 
 void check_error(int* buf, int recvlen);
 
-void send_metadata(int sockfd, char *buf, struct sockaddr_in *client, size_t len, struct Son *s);
+void send_metadata(int sockfd, char *buf, struct sockaddr_in *client, size_t len, struct Son *s, unsigned char filter);
 
 void send_errno(int sockfd, int* buf, struct sockaddr_in* client, size_t len, int errno);
 
-
+void send_sound(Son *s, int sockfd, int multi, unsigned char filter, float lvl, struct sockaddr_in *client, socklen_t clientlen);
 
 #endif

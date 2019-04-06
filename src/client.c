@@ -14,8 +14,8 @@
 #define BUFLEN 1024	//Max length of buffer
 #define PORT 8888	//The port on which to send data
 
-void parse_param(int argc, char** argv, char** name, struct in_addr* sin_addr) {
-	if(argc != 3) {
+void parse_param(int argc, char** argv, char* name, struct in_addr* sin_addr, unsigned char* filter) {
+	if(argc < 3) {
 		perror("Number of parameters invalid");
 		exit(1);
 	}
@@ -32,15 +32,28 @@ void parse_param(int argc, char** argv, char** name, struct in_addr* sin_addr) {
 	*sin_addr = ((struct sockaddr_in*)result->ai_addr)->sin_addr;
 	freeaddrinfo(result);
 	
-	*name = argv[2];
+	strcpy(name, argv[2]);
+	
+	for(int i = 3; i < argc; i++) {
+		if(strcmp("MONO", argv[i]) == 0) {
+			*filter |= 0b01;
+		}
+		else if(strcmp("VOLUME", argv[i]) == 0) {
+			*filter |= 0b010;
+		}
+		else if(strcmp("ECHO", argv[i]) == 0) {
+			*filter |= 0b0100;
+		}
+	}
 }
 
 int main(int argc, char *argv[])
 {
-	char* name;
+	char name[64];
 	char buf[BUFLEN] = {0};
 	struct in_addr sin_addr;
-	parse_param(argc, argv, &name, &sin_addr);
+	unsigned char filter = 0b1000;
+	parse_param(argc, argv, name, &sin_addr, &filter);
 	
 	printf("IP server found: %s Music asked: %s\n",inet_ntoa(sin_addr), name);
 	
@@ -59,7 +72,12 @@ int main(int argc, char *argv[])
 	socklen_t servlen = sizeof(serv);
 	init_sockaddr_in(&serv, AF_INET, htons(PORT), sin_addr.s_addr);
 	
-	sendto_check(sockfd, name, strlen(name), 0, &serv, servlen);
+	char full[65];
+	full[0] = filter;
+	full[1] = '\0';
+	strcat(full, name);
+	
+	sendto_check(sockfd, full, strlen(full), 0, &serv, servlen);
 	
 	recvlen = timeout_recv_check(sockfd, buf, 6, &client, &clientlen, &sockfds, &timeout);
 	
